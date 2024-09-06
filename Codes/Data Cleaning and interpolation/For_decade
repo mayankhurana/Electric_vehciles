@@ -1,0 +1,114 @@
+import pandas as pd
+import numpy as np
+
+# Load the original state-wise population data
+state_population_df = pd.read_excel('/Users/faker/Desktop/Project/datasets/Decade.XLSX')
+
+# Clean and format the data
+state_population_df_cleaned = state_population_df.iloc[0:, :].copy()
+state_population_df_cleaned.columns = ['State', '1951', '1961', '1971', '1981', '1991', '2001', '2011']
+
+# Remove any rows where 'State' is not a string
+state_population_df_cleaned = state_population_df_cleaned[state_population_df_cleaned['State'].apply(lambda x: isinstance(x, str))]
+
+# Sum up the values of 'Dadra & Nagar Haveli' and 'Daman & Diu' and assign them to 'DNH and DD'
+dnh_dd_population = state_population_df_cleaned[state_population_df_cleaned['State'].isin(['Dadra & Nagar Haveli', 'Daman & Diu'])].sum(numeric_only=True)
+dnh_dd_population['State'] = 'DNH and DD'
+
+# Remove the original rows for 'Dadra & Nagar Haveli' and 'Daman & Diu'
+state_population_df_cleaned = state_population_df_cleaned[~state_population_df_cleaned['State'].isin(['Dadra & Nagar Haveli', 'Daman & Diu'])]
+
+# Append the new 'DNH and DD' row
+state_population_df_cleaned = state_population_df_cleaned.append(dnh_dd_population, ignore_index=True)
+
+# Convert the population data to numeric, handling any non-numeric entries
+state_population_df_cleaned.iloc[:, 1:] = state_population_df_cleaned.iloc[:, 1:].apply(pd.to_numeric, errors='coerce')
+
+# Calculate the weights based on the most recent year, e.g., 2011
+latest_population_year = '2011'
+total_population_latest = state_population_df_cleaned[latest_population_year].sum()
+state_population_df_cleaned['Weight'] = state_population_df_cleaned[latest_population_year] / total_population_latest
+
+# Provided total population estimates for 2021-2024 in millions
+total_population = {
+    2021: 1407.564 * 1_000_000,
+    2022: 1417.173 * 1_000_000,
+    2023: 1428.628 * 1_000_000,
+    2024: 1441.72 * 1_000_000
+}
+
+# Calculate state-wise population estimates based on weights
+state_population_estimates = pd.DataFrame()
+for year, total_pop in total_population.items():
+    state_population_estimates_year = state_population_df_cleaned[['State', 'Weight']].copy()
+    state_population_estimates_year['Year'] = year
+    state_population_estimates_year['Population'] = state_population_estimates_year['Weight'] * total_pop
+    state_population_estimates = pd.concat([state_population_estimates, state_population_estimates_year])
+
+state_population_estimates = state_population_estimates.reset_index(drop=True)
+
+# Define seasonal adjustment factors that ensure population keeps increasing throughout the year
+seasonal_factors = np.array([
+    1.00,  # January
+    1.0005,  # February
+    1.0010,  # March
+    1.0015,  # April
+    1.0020,  # May
+    1.0025,  # June
+    1.0030,  # July
+    1.0035,  # August
+    1.0040,  # September
+    1.0045,  # October
+    1.0050,  # November
+    1.0055   # December
+])
+
+# Initialize a DataFrame to hold the seasonally adjusted monthly population estimates
+seasonal_monthly_population_estimates = pd.DataFrame()
+
+# Apply seasonal adjustments
+for state in state_population_estimates['State'].unique():
+    state_data = state_population_estimates[state_population_estimates['State'] == state]
+
+    monthly_data = pd.DataFrame()
+    for year in [2021, 2022, 2023, 2024]:
+        yearly_population = state_data[state_data['Year'] == year]['Population'].values[0]
+        months_in_year = len(pd.date_range(start=f'{year}-01-01', end=f'{year}-12-01', freq='MS'))
+        monthly_population = yearly_population / months_in_year
+
+        monthly_dates = pd.date_range(start=f'{year}-01-01', end=f'{year}-12-01', freq='MS')
+        monthly_values = monthly_population * seasonal_factors
+
+        # Normalize to ensure the yearly total matches after seasonal adjustments
+        scale_factor = yearly_population / monthly_values.sum()
+        monthly_values *= scale_factor
+
+        monthly_data = pd.concat([monthly_data, pd.DataFrame({
+            'State': state,
+            'Date': monthly_dates,
+            'Population': monthly_values
+        })])
+
+    # Append this state's data to the final DataFrame
+    seasonal_monthly_population_estimates = pd.concat([seasonal_monthly_population_estimates, monthly_data])
+
+# Reset index for clarity
+seasonal_monthly_population_estimates = seasonal_monthly_population_estimates.reset_index(drop=True)
+
+# Save the results to a CSV file
+seasonal_monthly_population_estimates.to_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/Decade.csv', index=False)
+
+# Load the main dataset
+main_data = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/merged_ev_sales_by_state.csv')
+
+# Load the seasonally adjusted population estimates
+population_data = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/Decade.csv')
+
+# Merge the datasets based on State and Date
+merged_data = pd.merge(main_data, population_data, on=['State', 'Date'], how='left')
+
+# Save the merged data to a new CSV file
+merged_data.to_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/main_file.csv', index=False)
+
+# Display confirmation message
+print("Datasets have been successfully merged and saved to the CSV file.")

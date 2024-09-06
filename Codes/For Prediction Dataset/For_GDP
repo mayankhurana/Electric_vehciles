@@ -1,0 +1,58 @@
+import pandas as pd
+from scipy.interpolate import UnivariateSpline
+
+# Load the GDP dataset and the train dataset
+gdp_df = pd.read_csv('/Users/faker/Desktop/Project/datasets/GDP-1980-2029.csv')
+train_file = pd.read_csv('/Users/faker/Desktop/Project/Training-Dataset/Train2.csv')
+
+# Extract the relevant row for "India" and transpose the DataFrame
+gdp_data = gdp_df.iloc[1, 1:].astype(float)
+years = gdp_df.columns[1:].astype(int)
+
+# Create a DataFrame from the extracted data
+gdp_long_df = pd.DataFrame({'Year': years, 'GDP': gdp_data})
+
+# Filter the data to include additional years (2023-2026)
+gdp_filtered_df = gdp_long_df[(gdp_long_df['Year'] >= 2023) & 
+                              (gdp_long_df['Year'] <= 2026)].copy()
+
+# Generate monthly dates from 2023-01-01 to 2026-12-01
+dates = pd.date_range(start='2023-01-01', end='2026-12-01', freq='MS')
+
+# Create a DataFrame with monthly dates
+monthly_gdp_df = pd.DataFrame({'Date': dates})
+
+# Spline interpolation for smoother transitions
+yearly_gdp_data = gdp_filtered_df.set_index('Year')['GDP'].astype(float)
+spline = UnivariateSpline(yearly_gdp_data.index, yearly_gdp_data.values, k=3, s=0)
+
+monthly_gdp_df['Monthly GDP'] = spline(monthly_gdp_df['Date'].dt.year + 
+                                       (monthly_gdp_df['Date'].dt.month - 1)/12)
+
+# Trim the data to the required range from 2025-01-01 to 2026-12-01
+monthly_gdp_df = monthly_gdp_df[(monthly_gdp_df['Date'] >= '2025-01-01') &
+                                (monthly_gdp_df['Date'] <= '2026-12-01')]
+
+# Ensure the 'Date' column is in datetime format for proper merging and calculations
+train_file['Date'] = pd.to_datetime(train_file['Date'])
+
+# Merge the interpolated GDP data with the train file on the Date column
+merged_df = train_file.merge(monthly_gdp_df, on='Date', how='left')
+
+# Calculate the total population of the country for each month
+merged_df['Total Population'] = merged_df.groupby('Date')['Population'].transform('sum')
+
+# Calculate the proportion of the state's population to the total population
+merged_df['Population Proportion'] = merged_df['Population'] / merged_df['Total Population']
+
+# Calculate the state-wise GDP
+merged_df['State-wise GDP'] = merged_df['Population Proportion'] * merged_df['Monthly GDP']
+
+# Add only the State-wise GDP to the original train file
+train_file['State-wise GDP'] = merged_df['State-wise GDP']
+
+# Save the updated train file with the new State-wise GDP column
+output_path = '/Users/faker/Desktop/Project/Training-Dataset/Train3.csv'
+train_file.to_csv(output_path, index=False)
+
+output_path

@@ -1,0 +1,65 @@
+import pandas as pd
+from scipy.interpolate import make_interp_spline
+
+# Step 1: Load the datasets
+petroleum_df = pd.read_excel('/Users/faker/Desktop/Project/datasets/Petroleum-cleaned.xlsx')
+main_df = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/main_file2.csv')
+
+# Step 2: Clean and reshape the petroleum dataset
+# Skip unnecessary rows and rename columns
+petroleum_cleaned = petroleum_df.iloc[2:].reset_index(drop=True)
+petroleum_cleaned.columns = ['State', '2008-09', '2009-10', '2010-11', '2011-12', '2012-13', 
+                             '2013-14', '2014-15', '2015-16', '2016-17', '2017-18', '2018-19', 
+                             '2019-20', '2020-21', '2021-22', '2022-23', '2023-24']
+petroleum_cleaned = petroleum_cleaned.dropna(subset=["State"])
+
+# Convert the data to a long format
+petroleum_long = petroleum_cleaned.melt(id_vars=["State"], var_name="Year", value_name="Petroleum_Consumption")
+petroleum_long["Petroleum_Consumption"] = pd.to_numeric(petroleum_long["Petroleum_Consumption"], errors='coerce')
+petroleum_long = petroleum_long.dropna()
+
+# Step 3: Filter out "STATE/UT" and other irrelevant entries
+petroleum_long_cleaned = petroleum_long[petroleum_long["State"] != "STATE/UT"]
+
+# Step 4: Apply correct year alignment and linear interpolation
+corrected_interpolated_petroleum_df = pd.DataFrame()
+
+for state in petroleum_long_cleaned["State"].unique():
+    state_data = petroleum_long_cleaned[petroleum_long_cleaned["State"] == state]
+    
+    # Generate the monthly dates for the full date range
+    date_range = pd.date_range(start="2021-04-01", end="2024-03-01", freq='MS')
+    state_monthly_df = pd.DataFrame(date_range, columns=["Date"])
+    state_monthly_df["State"] = state
+    
+    # Prepare data for linear interpolation with correct year alignment
+    years = state_data["Year"].apply(lambda x: int(x.split("-")[0])).values
+    values = state_data["Petroleum_Consumption"].values
+    
+    # Map the correct values to the corresponding dates
+    for i in range(len(years) - 1):
+        year_start = f"{years[i+1]}-04-01"
+        previous_year_end = f"{years[i+1]}-03-01"
+        value = values[i]
+        state_monthly_df.loc[state_monthly_df["Date"] == year_start, "Petroleum_Consumption"] = value
+        state_monthly_df.loc[state_monthly_df["Date"] == previous_year_end, "Petroleum_Consumption"] = value
+    
+    # Apply linear interpolation to fill in the monthly values
+    state_monthly_df["Petroleum_Consumption"] = state_monthly_df["Petroleum_Consumption"].interpolate(method='linear')
+    
+    # Append the linear-interpolated data for this state to the overall DataFrame
+    corrected_interpolated_petroleum_df = pd.concat([corrected_interpolated_petroleum_df, state_monthly_df], ignore_index=True)
+
+# Convert "State" columns to lowercase to turn off case sensitivity
+main_df["State"] = main_df["State"].str.lower()
+corrected_interpolated_petroleum_df["State"] = corrected_interpolated_petroleum_df["State"].str.lower()
+
+# The corrected petroleum dataset is now ready for further use or merging with the main file.
+main_df["Date"] = pd.to_datetime(main_df["Date"])
+corrected_interpolated_petroleum_df["Date"] = pd.to_datetime(corrected_interpolated_petroleum_df["Date"])
+
+# Merge the dataframes with case insensitivity
+merged_df = pd.merge(main_df, corrected_interpolated_petroleum_df, on=["Date", "State"], how="left")
+
+# Step 6: Save the merged dataset to a CSV file (optional)
+merged_df.to_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/main_file3.csv', index=False)

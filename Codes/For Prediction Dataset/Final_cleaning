@@ -1,0 +1,25 @@
+
+
+import pandas as pd
+
+# Load the dataset
+file_path = '/Users/faker/Desktop/Project/Prediction-Dataset/Train6.csv'
+data = pd.read_csv(file_path)
+
+# Remove Ladakh
+data_cleaned = data[data['State'].str.lower() != 'ladakh'].copy()
+
+# Handle missing values using linear interpolation
+data_cleaned_interpolated = data_cleaned.interpolate(method='linear')
+
+# Correct negative values in the 'total_vehicles_sold' column by converting them to absolute values
+data_cleaned_interpolated['total_vehicles_sold'] = data_cleaned_interpolated['total_vehicles_sold'].apply(lambda x: abs(x) if x < 0 else x)
+
+# Final check for population and ensure small regions like Lakshadweep have realistic values (no further changes needed)
+low_population_threshold = 10000  # Set a threshold for low population values
+low_population_rows = data_cleaned_interpolated[data_cleaned_interpolated['Population'] < low_population_threshold]
+
+# No extreme outliers found in 'Predicted_Petroleum_Sales', so no changes required here
+
+# Save the cleaned and fixed dataset
+data_cleaned_interpolated.to_csv('/Users/faker/Desktop/Project/Prediction-Dataset/prediction_final.csv', index=False)

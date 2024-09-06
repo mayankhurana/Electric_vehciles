@@ -1,0 +1,54 @@
+import pandas as pd
+from scipy.interpolate import UnivariateSpline
+
+# Load your datasets
+main_file = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/main_file3.csv')
+inflation_rate_df = pd.read_csv('/Users/faker/Desktop/Project/datasets/Inflation_rate.csv')
+
+# The first column likely contains the name of the region or country
+# We need to extract the row that contains "India" and transpose the DataFrame
+
+# Assuming the second row contains the relevant data for India
+inflation_rate_data = inflation_rate_df.iloc[1, 1:].astype(float)
+years = inflation_rate_df.columns[1:].astype(int)
+
+# Create a DataFrame from the extracted data
+inflation_rate_long_df = pd.DataFrame({'Year': years, 'Inflation Rate': inflation_rate_data})
+
+# Filter the data for the years of interest
+inflation_filtered_df = inflation_rate_long_df[(inflation_rate_long_df['Year'] >= 2021) & 
+                                               (inflation_rate_long_df['Year'] <= 2024)].copy()
+
+# Generate monthly dates from 2021-04-01 to 2024-03-01
+dates = pd.date_range(start='2021-04-01', end='2024-03-01', freq='MS')
+
+# Create a DataFrame with monthly dates
+monthly_inflation_df = pd.DataFrame({'Date': dates})
+
+# Spline interpolation for smoother transitions
+yearly_inflation_data = inflation_filtered_df.set_index('Year')['Inflation Rate'].astype(float)
+spline = UnivariateSpline(yearly_inflation_data.index, yearly_inflation_data.values, k=3, s=0)
+
+monthly_inflation_df['Monthly Inflation Rate'] = spline(monthly_inflation_df['Date'].dt.year + 
+                                                        (monthly_inflation_df['Date'].dt.month - 1)/12)
+
+# Expand the inflation data across all states
+states = main_file['State'].unique()
+final_inflation_expanded_df = pd.DataFrame()
+
+for state in states:
+    temp_df = monthly_inflation_df.copy()
+    temp_df['State'] = state
+    final_inflation_expanded_df = pd.concat([final_inflation_expanded_df, temp_df], ignore_index=True)
+
+# Merge the expanded inflation data with the main dataset
+main_file['Date'] = pd.to_datetime(main_file['Date'])
+final_inflation_expanded_df['Date'] = pd.to_datetime(final_inflation_expanded_df['Date'])
+
+merged_df = main_file.merge(final_inflation_expanded_df, on=['Date', 'State'], how='left')
+
+# Save the merged dataset
+output_path = '/Users/faker/Desktop/Project/Cleaned-Dataset/main_file4.csv'
+merged_df.to_csv(output_path, index=False)
+
+print("Merged dataset saved to:", output_path)

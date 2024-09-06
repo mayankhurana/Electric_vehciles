@@ -1,0 +1,37 @@
+import pandas as pd
+
+# Load the dim_date and electric_vehicle_sales_by_state datasets
+dim_date_df = pd.read_csv('/Users/faker/Desktop/Project/datasets/dim_date.csv')
+ev_sales_by_state_df = pd.read_csv('/Users/faker/Desktop/Project/datasets/electric_vehicle_sales_by_state.csv')
+
+# Aggregate the EV sales data by state and date, summing up the electric_vehicles_sold and total_vehicles_sold
+aggregated_ev_sales_df = ev_sales_by_state_df.groupby(['date', 'state']).agg({
+    'electric_vehicles_sold': 'sum',
+    'total_vehicles_sold': 'sum'
+}).reset_index()
+
+# Rename the states as needed
+aggregated_ev_sales_df['state'] = aggregated_ev_sales_df['state'].replace({
+    'Andaman & Nicobar Island': 'Andaman & Nicobar Islands',
+    'Jammu and Kashmir': 'Jammu & Kashmir'
+})
+
+# Merge the aggregated data with dim_date on the date column
+merged_ev_sales_df = pd.merge(dim_date_df, aggregated_ev_sales_df, on='date', how='outer')
+
+# Remove the 'fiscal_year' and 'quarter' columns from the merged dataset
+merged_ev_sales_df = merged_ev_sales_df.drop(columns=['fiscal_year', 'quarter'])
+
+# Check for missing data in the merged dataset
+missing_data_summary = merged_ev_sales_df.isnull().sum()
+
+# Display the summary of missing data
+print("Missing Data Summary:")
+print(missing_data_summary)
+
+# Display the first few rows of the cleaned and merged dataset
+print("Merged EV Sales Data (first 5 rows):")
+print(merged_ev_sales_df.head())
+
+# Save the processed and cleaned data to a new CSV file
+merged_ev_sales_df.to_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/merged_ev_sales_by_state.csv', index=False)

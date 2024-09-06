@@ -1,0 +1,53 @@
+import pandas as pd
+from scipy.interpolate import UnivariateSpline
+
+# Load your datasets
+train_file = pd.read_csv('/Users/faker/Desktop/Project/Training-Dataset/Train.csv')
+inflation_rate_df = pd.read_csv('/Users/faker/Desktop/Project/datasets/Inflation_rate.csv')
+
+# Extract inflation rate data for India and transpose
+inflation_rate_data = inflation_rate_df.iloc[1, 1:].astype(float)
+years = inflation_rate_df.columns[1:].astype(int)
+
+# Create a DataFrame from the extracted data
+inflation_rate_long_df = pd.DataFrame({'Year': years, 'Inflation Rate': inflation_rate_data})
+
+# Filter data to include additional years (2023-2026)
+inflation_filtered_df = inflation_rate_long_df[(inflation_rate_long_df['Year'] >= 2023) & 
+                                               (inflation_rate_long_df['Year'] <= 2026)].copy()
+
+# Generate monthly dates for the extended range from 2023-01-01 to 2026-12-01
+dates = pd.date_range(start='2023-01-01', end='2026-12-01', freq='MS')
+
+# Create a DataFrame with the extended monthly dates
+monthly_inflation_df = pd.DataFrame({'Date': dates})
+
+# Perform spline interpolation using the additional years
+yearly_inflation_data = inflation_filtered_df.set_index('Year')['Inflation Rate'].astype(float)
+spline = UnivariateSpline(yearly_inflation_data.index, yearly_inflation_data.values, k=3, s=0)
+
+# Generate the monthly inflation rate using the spline
+monthly_inflation_df['Monthly Inflation Rate'] = spline(monthly_inflation_df['Date'].dt.year + 
+                                                        (monthly_inflation_df['Date'].dt.month - 1)/12)
+
+# Trim down the data to the required range from 2025-01-01 to 2026-12-01
+monthly_inflation_df = monthly_inflation_df[(monthly_inflation_df['Date'] >= '2025-01-01') &
+                                            (monthly_inflation_df['Date'] <= '2026-12-01')]
+
+# Expand the inflation data across all states
+states = train_file['State'].unique()
+final_inflation_expanded_df = pd.DataFrame()
+
+for state in states:
+    temp_df = monthly_inflation_df.copy()
+    temp_df['State'] = state
+    final_inflation_expanded_df = pd.concat([final_inflation_expanded_df, temp_df], ignore_index=True)
+
+# Merge the expanded inflation data with the train dataset
+train_file['Date'] = pd.to_datetime(train_file['Date'])
+final_inflation_expanded_df['Date'] = pd.to_datetime(final_inflation_expanded_df['Date'])
+
+merged_df = train_file.merge(final_inflation_expanded_df, on=['Date', 'State'], how='left')
+
+# Save the merged dataset
+merged_df.to_csv('/Users/faker/Desktop/Project/Training-Dataset/Train2.csv', index=False)

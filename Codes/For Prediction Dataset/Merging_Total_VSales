@@ -1,0 +1,25 @@
+import pandas as pd
+
+# Load the original input file
+input_file_path = '/Users/faker/Desktop/Project/Training-Dataset/Train3.csv'  # Replace with your file path
+input_data = pd.read_csv(input_file_path)
+
+# Load the final forecast file
+forecast_file_path = '/Users/faker/Desktop/Project/Training-Dataset/Total_VSales.csv'  # Replace with your file path
+forecast_data = pd.read_csv(forecast_file_path)
+
+# Convert the 'State' column to lowercase in both datasets to ensure consistency
+input_data['State'] = input_data['State'].str.lower()
+forecast_data['State'] = forecast_data['State'].str.lower()
+
+# Merge the forecast data with the original input data based on 'Date' and 'State'
+merged_data = pd.merge(input_data, forecast_data, on=['Date', 'State'], how='outer')
+
+# Ensure the merged data is sorted by Date and State
+merged_data = merged_data.sort_values(by=['Date', 'State'])
+
+# Display the first few rows of the merged data
+print(merged_data.head())
+
+# Save the merged data to a new CSV file
+merged_data.to_csv('/Users/faker/Desktop/Project/Training-Dataset/Train4.csv', index=False)

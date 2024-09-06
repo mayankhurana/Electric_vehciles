@@ -1,0 +1,71 @@
+import pandas as pd
+from scipy.interpolate import PchipInterpolator
+
+# Load the EV Stations data
+file_path = '/Users/faker/Desktop/Project/datasets/EV_Stations.csv'
+ev_stations_df = pd.read_csv(file_path)
+
+# Use '2022-04-07' to create a new column '2021-05-01' with 1 less EV station
+ev_stations_df['2021-05-01'] = ev_stations_df['2022-04-07'] - 1
+
+# Drop unnecessary columns
+ev_stations_df_cleaned = ev_stations_df.drop(columns=["Sl. No."])
+
+# Rename the original columns to reflect the first of the month
+ev_stations_df_cleaned.columns = ['State/ UT', '2022-04-01', '2024-03-01', '2023-03-01', '2021-05-01']
+
+# Melt the dataframe with the corrected dates
+ev_stations_df_melted_corrected = ev_stations_df_cleaned.melt(id_vars=["State/ UT"], var_name="Date", value_name="EV_Stations")
+
+# Convert the 'Date' column to datetime format
+ev_stations_df_melted_corrected['Date'] = pd.to_datetime(ev_stations_df_melted_corrected['Date'])
+
+# Sort by 'State/ UT' and 'Date'
+ev_stations_df_melted_corrected = ev_stations_df_melted_corrected.sort_values(by=['State/ UT', 'Date'])
+
+# Generate a complete monthly date range from 2021-04-01 to 2024-03-01
+full_date_range = pd.date_range(start='2021-04-01', end='2024-03-01', freq='MS')
+
+# Function to apply linear interpolation and PCHIP interpolation for each state
+def combined_interpolate(group):
+    # Set Date as the index
+    group = group.set_index('Date')
+    
+    # Reindex to ensure we have a complete range of dates
+    group = group.reindex(full_date_range)
+    
+    # Linearly interpolate NaN values to handle missing early years
+    group['EV_Stations'] = group['EV_Stations'].interpolate(method='linear', limit_direction='both')
+    
+    # Create the PCHIP interpolator object
+    pchip = PchipInterpolator(group.index, group['EV_Stations'], extrapolate=True)
+    
+    # Apply the interpolator to the full date range
+    group['EV_Stations'] = pchip(group.index)
+    
+    # Return the interpolated data
+    group['State/ UT'] = group['State/ UT'].ffill().bfill()  # Fill state names
+    return group.reset_index().rename(columns={'index': 'Date'})
+
+# Apply the combined interpolation to each state's data
+ev_stations_combined_interpolated = ev_stations_df_melted_corrected.groupby('State/ UT').apply(combined_interpolate)
+
+# Rename columns for consistency with the main file
+ev_stations_combined_interpolated.rename(columns={'State/ UT': 'State'}, inplace=True)
+
+# Save the interpolated data
+output_path = '/Users/faker/Desktop/Project/Cleaned-Dataset/EV_Stations.csv'
+ev_stations_combined_interpolated.to_csv(output_path, index=False)
+
+# Load the main file
+main_df = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/main_file.csv')
+
+# Load the interpolated EV stations data
+ev_stations_df = pd.read_csv('/Users/faker/Desktop/Project/Cleaned-Dataset/EV_Stations.csv')
+
+# Merge the main file with the interpolated EV stations data on 'Date' and 'State'
+merged_df = pd.merge(main_df, ev_stations_df, on=['Date', 'State'], how='left')
+
+# Save the merged file to your desired output path
+merged_output_path = '/Users/faker/Desktop/Project/Cleaned-Dataset/main_file2.csv'
+merged_df.to_csv(merged_output_path, index=False)

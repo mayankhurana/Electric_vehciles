@@ -1,0 +1,82 @@
+import pandas as pd
+from joblib import Parallel, delayed
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Load your dataset
+file_path = '/content/final_training_file'  # Replace with your file path
+data = pd.read_csv(file_path)
+
+# Convert the 'Date' column to datetime format
+data['Date'] = pd.to_datetime(data['Date'])
+
+# Extract the necessary columns
+vehicles_data = data[['Date', 'State', 'total_vehicles_sold']]
+
+# Get the unique list of states, except for Jammu & Kashmir
+states = vehicles_data['State'].unique()
+states = [state for state in states if state != 'jammu & kashmir']
+
+# Function to fit the SARIMA model and forecast for a single state
+def fit_sarima_forecast(state):
+    try:
+        state_data = vehicles_data[vehicles_data['State'] == state].copy()
+        state_data.set_index('Date', inplace=True)
+
+        # Split into training data (up to December 2023)
+        train_state = state_data[:'2023-12-01']
+
+        # Fit the SARIMA model
+        sarima_model = SARIMAX(train_state['total_vehicles_sold'], order=(1, 0, 1), seasonal_order=(1, 0, 1, 12))
+        fitted_sarima_model = sarima_model.fit(disp=False)
+
+        # Forecast from January 2025 to December 2026
+        forecast_steps = 24  # 2 years of monthly data
+        state_forecast = fitted_sarima_model.get_forecast(steps=forecast_steps).summary_frame()['mean']
+
+        # Prepare the output in the same format as the input
+        forecast_df = pd.DataFrame({
+            'Date': pd.date_range(start='2025-01-01', periods=forecast_steps, freq='MS'),
+            'State': state,
+            'total_vehicles_sold': state_forecast.values
+        })
+        
+        return forecast_df
+    except Exception as e:
+        # If there's an error, return an empty DataFrame
+        print(f"Error with state {state}: {e}")
+        return pd.DataFrame()
+
+# Run the SARIMA model for all states except Jammu & Kashmir in parallel
+forecast_dfs = Parallel(n_jobs=-1)(delayed(fit_sarima_forecast)(state) for state in states)
+
+# Combine all state forecasts into a single DataFrame
+final_forecast_df = pd.concat(forecast_dfs, ignore_index=True)
+
+# Calculate the forecast separately for Jammu & Kashmir
+jk_data = vehicles_data[vehicles_data['State'] == 'jammu & kashmir'].copy()
+jk_data.set_index('Date', inplace=True)
+sarima_jk_model = SARIMAX(jk_data['total_vehicles_sold'], order=(1, 0, 1), seasonal_order=(1, 0, 1, 12))
+fitted_jk_model = sarima_jk_model.fit(disp=False)
+jk_forecast = fitted_jk_model.get_forecast(steps=24).summary_frame()['mean']
+
+# Create a DataFrame for Jammu & Kashmir forecast
+jk_forecast_df = pd.DataFrame({
+    'Date': pd.date_range(start='2025-01-01', periods=24, freq='MS'),
+    'State': 'jammu & kashmir',
+    'total_vehicles_sold': jk_forecast.values
+})
+
+# Add Jammu & Kashmir forecast to the main DataFrame
+final_forecast_df = pd.concat([final_forecast_df, jk_forecast_df], ignore_index=True)
+
+# Ensure the DataFrame is sorted by Date and State
+final_forecast_df = final_forecast_df.sort_values(by=['Date', 'State'])
+
+# Reformat the DataFrame to match the input format
+final_forecast_df = final_forecast_df[['Date', 'State', 'total_vehicles_sold']]
+
+# Display the first few rows of the final forecast DataFrame
+print(final_forecast_df.head())
+
+# Save the final forecast to a CSV file
+final_forecast_df.to_csv('statewise_forecasts_2025_2026_formatted.csv', index=False)
