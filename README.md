@@ -16,3 +16,65 @@
 <img width="1657" alt="Screenshot 2024-09-07 at 12 19 36 AM" src="https://github.com/user-attachments/assets/8c53660a-1c14-4324-a592-c343958c63a2">
 <img width="1629" alt="Screenshot 2024-09-07 at 12 19 49 AM" src="https://github.com/user-attachments/assets/1bc83aa1-70d9-4a4b-a87a-90183cf37bce">
 <img width="1629" alt="Screenshot 2024-09-07 at 12 19 55 AM" src="https://github.com/user-attachments/assets/8b4f9932-a9ef-4254-9ef3-e90a07da99bf">
+
+# Electric Vehicles Sales Prediction
+
+This project aims to predict electric vehicle (EV) sales using machine learning models and various datasets. The project includes Jupyter notebooks, SQL scripts, Python code for data cleaning, preprocessing, model evaluation, and a Tableau visualization.
+
+## Project Overview
+
+- **Datasets**: Original, Prediction, and Training datasets are provided for model building and testing.
+- **Final Model**: The `Final_Model.ipynb` notebook contains the main machine learning pipeline.
+- **SQLite Database**: `Sales.db` stores the sales data.
+- **Predictions**: Precomputed predictions are available in `Predicted_EV_Sales.csv`.
+- **Tableau Visualization**: A Tableau workbook (`E-Vehicles.twbx`) is provided for visualizing data.
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/mayankhurana/Electric_vehciles.git
+   cd Electric_vehciles
+   ```
+2. Install the dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. (Optional) Set up a virtual environment:
+   ```bash
+   python -m venv env
+   source env/bin/activate  # On Windows: env\Scripts\activate
+   ```
+
+## Usage
+
+1. **Run the Jupyter notebook**:
+   ```bash
+   jupyter notebook
+   ```
+   Open and run `Final_Model.ipynb` to execute the machine learning model.
+
+2. **View the precomputed predictions**:
+   Check the `Predicted_EV_Sales.csv` file for the EV sales predictions.
+
+3. **Explore Tableau visualization**:
+   Open the `E-Vehicles.twbx` file in Tableau to explore interactive visualizations.
+
+## Code Structure
+
+- **Codes/Data Cleaning and Interpolation**: Python scripts for cleaning and preprocessing the datasets.
+- **Codes/For Prediction Dataset**: Scripts used to process and prepare data for predictions.
+- **Codes/SQL**: SQL scripts (`PTask1.sql` to `PTask10.sql`) to query and manage the `Sales.db` database.
+
+## Datasets
+
+- **Original-Datasets**: Raw datasets.
+- **Prediction-Datasets**: Data used to make predictions.
+- **Training-Datasets**: Cleaned and processed data for model training.
+
+## License
+
+This project is licensed under the MIT License.
+
+
+
